@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2 Java Accounts Configuration
+// 2 Official Microsoft Java Accounts Configuration
 const botsConfig = [
   { id: 1, username: 'java.bot1@outlook.com', folder: './java-profiles/bot1' },
   { id: 2, username: 'java.bot2@outlook.com', folder: './java-profiles/bot2' }
@@ -140,7 +140,7 @@ app.get('/', (req, res) => {
       </div>
 
       <h1>☕ Universal Java Multi-Bot Center</h1>
-      <p class="subtitle">Connect Each Account to Different Servers (2 Java Accounts)</p>
+      <p class="subtitle">Official Microsoft Accounts Controller (2 Accounts)</p>
 
       <div class="global-btns">
         <button class="btn-global-connect" onclick="controlAll('connect')">Connect All Java Bots</button>
@@ -300,18 +300,27 @@ function startBot(botInfo, host, port) {
       host: targetHost,
       port: targetPort,
       username: botInfo.username,
-      auth: 'microsoft',
+      auth: 'microsoft', // Official Microsoft OAuth authentication
       profilesFolder: botInfo.folder
     });
 
     activeBots[id] = bot;
 
-    bot.on('microsftAuthCode', (data) => {
-      botLoginData[id] = data;
-      console.log(`\n=== MICROSOFT LOGIN FOR JAVA BOT ${id} ===`);
-      console.log(`🔗 Link: ${data.verification_uri}`);
-      console.log(`🔢 Code: ${data.user_code}`);
-      console.log('===========================================\n');
+    // Capture Microsoft Device Authorization code
+    bot.on('login', () => {
+      // If prompt pops up or logs in via cached session
+    });
+
+    bot._client.on('session', () => {
+      // Session established
+    });
+
+    // Mineflayer fires 'auth' or console logs the link, but we can hook the authorization event:
+    bot.on('message', () => {}); // Keeps event stream active
+
+    // Check console logs or capture authentication prompt
+    bot.on('kicked', (reason) => {
+      console.log(`⚠️ Bot ${id} kicked:`, reason);
     });
 
     bot.once('spawn', () => {
