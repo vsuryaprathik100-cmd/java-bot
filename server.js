@@ -90,9 +90,7 @@ app.get('/', (req, res) => {
           padding: 22px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1);
           text-align: left; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
           display: flex; flex-direction: column; justify-content: space-between;
-          transition: transform 0.25s ease, border-color 0.25s ease;
         }
-        .card:hover { transform: translateY(-5px); border-color: rgba(56, 189, 248, 0.5); }
         .card h3 { margin-top: 0; margin-bottom: 6px; color: #f8fafc; font-size: 1.2rem; }
         .card p { margin: 6px 0 10px 0; font-size: 0.85rem; color: #94a3b8; word-break: break-all; }
 
@@ -154,54 +152,64 @@ app.get('/', (req, res) => {
       <script>
         const bots = ${JSON.stringify(botsConfig)};
 
+        function renderCards() {
+          const grid = document.getElementById('botGrid');
+          grid.innerHTML = '';
+          bots.forEach(bot => {
+            grid.innerHTML += \`
+              <div class="card" id="card-\${bot.id}">
+                <div>
+                  <h3>Java Bot \${bot.id}</h3>
+                  <p>\${bot.username} <br>Status: <span id="status-\${bot.id}" class="status-offline">Offline</span></p>
+                  <div class="target-inputs">
+                    <div>IP: <input type="text" id="ip-\${bot.id}" value="localhost"></div>
+                    <div>Port: <input type="text" id="port-\${bot.id}" value="25565"></div>
+                  </div>
+                  <div id="login-\${bot.id}"></div>
+                </div>
+                <div class="btn-row">
+                  <button class="btn-connect" onclick="botAction(\${bot.id}, 'connect')">Connect</button>
+                  <button class="btn-disconnect" onclick="botAction(\${bot.id}, 'disconnect')">Disconnect</button>
+                </div>
+              </div>
+            \`;
+          });
+        }
+
         async function fetchStatus() {
           try {
             const res = await fetch('/status');
             const data = await res.json();
-            const grid = document.getElementById('botGrid');
-            grid.innerHTML = '';
 
             bots.forEach(bot => {
-              const info = data[bot.id] || { status: 'Offline', host: 'localhost', port: 25565, verification_uri: null, user_code: null };
-              let statusClass = 'status-offline';
-              if (info.status === 'Online') statusClass = 'status-online';
-              else if (info.status === 'Awaiting Login') statusClass = 'status-awaiting';
-              else if (info.status === 'Connecting...') statusClass = 'status-connecting';
+              const info = data[bot.id] || { status: 'Offline', verification_uri: null, user_code: null };
+              const statusEl = document.getElementById('status-' + bot.id);
+              const loginEl = document.getElementById('login-' + bot.id);
 
-              let loginHtml = '';
-              if (info.user_code && info.verification_uri) {
-                loginHtml = \`
-                  <div class="login-box">
-                    🔑 <b>Microsoft Auth:</b>
-                    <div class="login-row">
-                      🔗 <a href="\${info.verification_uri}" target="_blank">Open Link</a>
-                      <button class="btn-copy" onclick="copyText('\${info.verification_uri}', this)">Copy Link</button>
-                    </div>
-                    <div class="login-row">
-                      <span>Code: <span class="login-code">\${info.user_code}</span></span>
-                      <button class="btn-copy" onclick="copyText('\${info.user_code}', this)">Copy Code</button>
-                    </div>
-                  </div>
-                \`;
+              if (statusEl) {
+                statusEl.innerText = info.status;
+                statusEl.className = info.status === 'Online' ? 'status-online' : info.status === 'Awaiting Login' ? 'status-awaiting' : info.status === 'Connecting...' ? 'status-connecting' : 'status-offline';
               }
 
-              grid.innerHTML += \`
-                <div class="card">
-                  <div>
-                    <h3>Java Bot \${bot.id}</h3>
-                    <p>\${bot.username} <br>Status: <span class="\${statusClass}">\${info.status}</span></p>
-                    <div class="target-inputs">
-                      <div>IP: <input type="text" id="ip-\${bot.id}" value="\${info.host}"></div>
-                      <div>Port: <input type="text" id="port-\${bot.id}" value="\${info.port}"></div>
+              if (loginEl) {
+                if (info.user_code && info.verification_uri) {
+                  loginEl.innerHTML = \`
+                    <div class="login-box">
+                      🔑 <b>Microsoft Auth:</b>
+                      <div class="login-row">
+                        🔗 <a href="\${info.verification_uri}" target="_blank">Open Link</a>
+                        <button class="btn-copy" onclick="copyText('\${info.verification_uri}', this)">Copy Link</button>
+                      </div>
+                      <div class="login-row">
+                        <span>Code: <span class="login-code">\${info.user_code}</span></span>
+                        <button class="btn-copy" onclick="copyText('\${info.user_code}', this)">Copy Code</button>
+                      </div>
                     </div>
-                    \${loginHtml}
-                  </div>
-                  <div class="btn-row">
-                    <button class="btn-connect" onclick="botAction(\${bot.id}, 'connect')">Connect</button>
-                    <button class="btn-disconnect" onclick="botAction(\${bot.id}, 'disconnect')">Disconnect</button>
-                  </div>
-                </div>
-              \`;
+                  \`;
+                } else {
+                  loginEl.innerHTML = '';
+                }
+              }
             });
           } catch(e) {}
         }
@@ -231,6 +239,7 @@ app.get('/', (req, res) => {
           });
         }
 
+        renderCards();
         fetchStatus();
         setInterval(fetchStatus, 3000);
       </script>
@@ -253,8 +262,6 @@ app.get('/status', (req, res) => {
 
     status[bot.id] = {
       status: stat,
-      host: botTargets[bot.id]?.host || 'localhost',
-      port: botTargets[bot.id]?.port || 25565,
       verification_uri: botLoginData[bot.id]?.verification_uri || null,
       user_code: botLoginData[bot.id]?.user_code || null
     };
@@ -299,7 +306,6 @@ function startBot(botInfo, host, port) {
 
     activeBots[id] = bot;
 
-    // Mineflayer event for Microsoft device login code
     bot.on('microsftAuthCode', (data) => {
       botLoginData[id] = data;
       console.log(`\n=== MICROSOFT LOGIN FOR JAVA BOT ${id} ===`);
@@ -353,6 +359,7 @@ app.post('/bot/:id/:action', (req, res) => {
   if (!botInfo) return res.status(404).json({ error: 'Bot not found' });
 
   if (action === 'connect') {
+    botEnabled[id] = true;
     startBot(botInfo, host, port);
   } else if (action === 'disconnect') {
     botEnabled[id] = false;
@@ -366,7 +373,10 @@ app.post('/bots/:action', (req, res) => {
   const { host, port } = req.body;
 
   if (action === 'connect') {
-    botsConfig.forEach(b => { startBot(b, host, port); });
+    botsConfig.forEach(b => { 
+      botEnabled[b.id] = true;
+      startBot(b, host, port); 
+    });
   } else if (action === 'disconnect') {
     botsConfig.forEach(b => { botEnabled[b.id] = false; cleanupBot(b.id); });
   }
