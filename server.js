@@ -23,18 +23,17 @@ const botsConfig = [
   { id: 2, username: 'java.bot2@outlook.com', folder: './java-profiles/bot2' }
 ];
 
-// Ensure profile directories exist for token caching
 botsConfig.forEach(cfg => {
   if (!fs.existsSync(cfg.folder)) {
     fs.mkdirSync(cfg.folder, { recursive: true });
   }
 });
 
-const activeBots = {};          // Stores active mineflayer instances
-const botSpawned = {};          // Tracks if the bot successfully spawned
-const botEnabled = {};          // Tracks if a bot is authorized to run
-const botLoginData = {};        // Stores Microsoft auth codes { verification_uri, user_code } per bot
-const botTargets = {};          // Stores individual host/port per bot for universal server connection
+const activeBots = {};          
+const botSpawned = {};          
+const botEnabled = {};          
+const botLoginData = {};        
+const botTargets = {};          
 
 // ==========================================
 // HTML DASHBOARD INTERFACE (Figma-Style)
@@ -45,24 +44,18 @@ app.get('/', (req, res) => {
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Universal Java Multi-Bot Command Center</title>
+      <title>DonutSMP Java Bot Command Center</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
 
         body {
-          margin: 0;
-          padding: 30px;
-          font-family: 'Poppins', sans-serif;
-          color: #fff;
-          text-align: center;
-          min-height: 100vh;
-          overflow-x: hidden;
-          background-color: #080c14;
+          margin: 0; padding: 30px; font-family: 'Poppins', sans-serif;
+          color: #fff; text-align: center; min-height: 100vh;
+          overflow-x: hidden; background-color: #080c14;
         }
 
         .mesh-bg {
-          position: fixed;
-          top: 0; left: 0; width: 100vw; height: 100vh;
+          position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
           z-index: -1; background-color: #080c14; overflow: hidden;
         }
 
@@ -71,7 +64,7 @@ app.get('/', (req, res) => {
           animation: floatBlob 14s ease-in-out infinite alternate;
         }
         .blob-1 { width: 550px; height: 550px; background: #38bdf8; top: -15%; left: -10%; }
-        .blob-2 { width: 600px; height: 600px; background: #10b981; bottom: -20%; right: -10%; animation-delay: -4s; }
+        .blob-2 { width: 600px; height: 600px; background: #f43f5e; bottom: -20%; right: -10%; animation-delay: -4s; }
 
         @keyframes floatBlob {
           0% { transform: translate(0px, 0px) scale(1); }
@@ -112,9 +105,8 @@ app.get('/', (req, res) => {
         .login-code { color: #f43f5e; font-size: 0.95rem; font-weight: bold; background: #1e293b; padding: 2px 6px; border-radius: 4px; }
 
         .btn-copy {
-          background: #38bdf8; color: #080c14; padding: 4px 10px; font-size: 0.75rem;
-          border-radius: 6px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap;
-          transition: background 0.2s;
+          background: #38bdf8; color: #080c14; padding: 4px 8px; font-size: 0.7rem;
+          border-radius: 4px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap;
         }
         .btn-copy:hover { background: #0ea5e9; }
 
@@ -140,8 +132,8 @@ app.get('/', (req, res) => {
         <div class="blob blob-2"></div>
       </div>
 
-      <h1>☕ Universal Java Multi-Bot Center</h1>
-      <p class="subtitle">Official Microsoft Accounts Controller (2 Accounts)</p>
+      <h1>🍩 DonutSMP Java Bot Center</h1>
+      <p class="subtitle">Official Microsoft Accounts Controller (donutsmp.net)</p>
 
       <div class="global-btns">
         <button class="btn-global-connect" onclick="controlAll('connect')">Connect All Java Bots</button>
@@ -163,7 +155,7 @@ app.get('/', (req, res) => {
                   <h3>Java Bot \${bot.id}</h3>
                   <p>\${bot.username} <br>Status: <span id="status-\${bot.id}" class="status-offline">Offline</span></p>
                   <div class="target-inputs">
-                    <div>IP: <input type="text" id="ip-\${bot.id}" value="localhost"></div>
+                    <div>IP: <input type="text" id="ip-\${bot.id}" value="donutsmp.net"></div>
                     <div>Port: <input type="text" id="port-\${bot.id}" value="25565"></div>
                   </div>
                   <div id="login-\${bot.id}"></div>
@@ -290,201 +282,4 @@ function cleanupBot(id) {
 
 function startBot(botInfo, host, port) {
   const id = botInfo.id;
-  cleanupBot(id);
-
-  const targetHost = host || 'localhost';
-  const targetPort = parseInt(port) || 25565;
-
-  botTargets[id] = { host: targetHost, port: targetPort };
-  botEnabled[id] = true;
-  botSpawned[id] = false;
-  botLoginData[id] = null;
-
-  console.log(`🚀 Connecting Java Bot ${id} (${botInfo.username}) to ${targetHost}:${targetPort}...`);
-
-  try {
-    const bot = mineflayer.createBot({
-      host: targetHost,
-      port: targetPort,
-      username: botInfo.username,
-      auth: 'microsoft',
-      profilesFolder: botInfo.folder,
-      // Intercept Xbox/Microsoft device authentication prompt output
-      onMsaCode: (data) => {
-        botLoginData[id] = {
-          verification_uri: data.verification_uri || 'https://microsoft.com/link',
-          user_code: data.user_code
-        };
-        console.log(`\n=== MICROSOFT LOGIN FOR JAVA BOT ${id} ===`);
-        console.log(`🔗 Link: ${data.verification_uri}`);
-        console.log(`🔢 Code: ${data.user_code}`);
-        console.log('===========================================\n');
-      }
-    });
-
-    activeBots[id] = bot;
-
-    // Fallback listener for older mineflayer auth event emitter names
-    bot.on('auth', () => {});
-
-    // Catch console logs if library outputs link via stdout
-    const originalLog = console.log;
-    console.log = (...args) => {
-      const msg = args.join(' ');
-      if (msg.includes('Microsoft Authentication') || msg.includes('https://') && msg.includes('code')) {
-        // Parsed if needed
-      }
-      originalLog(...args);
-    };
-
-    bot.once('spawn', () => {
-      console.log(`✅ Java Bot ${id} successfully spawned into ${targetHost}:${targetPort}!`);
-      botSpawned[id] = true;
-      botLoginData[id] = null;
-    });
-
-    bot.on('error', (err) => {
-      console.error(`⚠️ Java Bot ${id} error:`, err.message);
-    });
-
-    bot.on('end', () => {
-      console.log(`🔌 Java Bot ${id} disconnected.`);
-      cleanupBot(id);
-    });
-
-  } catch (e) {
-    console.error(`❌ Failed to start Java Bot ${id}:`, e.message);
-    cleanupBot(id);
-  }
-}
-
-// Background Auto-Reconnect Loop
-async function runAutoConnectLoop() {
-  while (true) {
-    for (let i = 0; i < botsConfig.length; i++) {
-      const botInfo = botsConfig[i];
-      const id = botInfo.id;
-      if (botEnabled[id] && !botSpawned[id] && !activeBots[id] && !botLoginData[id]) {
-        const target = botTargets[id] || { host: 'localhost', port: 25565 };
-        startBot(botInfo, target.host, target.port);
-      }
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-  }
-}
-
-app.post('/bot/:id/:action', (req, res) => {
-  const id = parseInt(req.params.id);
-  const action = req.params.action;
-  const { host, port } = req.body;
-  const botInfo = botsConfig.find(b => b.id === id);
-
-  if (!botInfo) return res.status(404).json({ error: 'Bot not found' });
-
-  if (action === 'connect') {
-    botEnabled[id] = true;
-    startBot(botInfo, host, port);
-  } else if (action === 'disconnect') {
-    botEnabled[id] = false;
-    cleanupBot(id);
-  }
-  res.json({ success: true });
-});
-
-app.post('/bots/:action', (req, res) => {
-  const action = req.params.action;
-  const { host, port } = req.body;
-
-  if (action === 'connect') {
-    botsConfig.forEach(b => { 
-      botEnabled[b.id] = true;
-      startBot(b, host, port); 
-    });
-  } else if (action === 'disconnect') {
-    botsConfig.forEach(b => { botEnabled[b.id] = false; cleanupBot(b.id); });
-  }
-  res.json({ success: true });
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🌐 Universal Java Dashboard running on port ${PORT}`);
-  runAutoConnectLoop();
-});
-
-// ==========================================
-// DISCORD MASTER CONTROLLER
-// ==========================================
-const discordClient = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
-});
-
-discordClient.on('ready', () => {
-  console.log(`🤖 Discord Controller logged in as ${discordClient.user.tag}`);
-});
-
-discordClient.on('messageCreate', (message) => {
-  if (message.author.bot || !message.content.startsWith('!cmd')) return;
-
-  const args = message.content.split(' ');
-  if (args.length < 3) {
-    return message.reply('❌ Invalid format. Use: `!cmd <1|2|all> <command>`');
-  }
-
-  const targetId = args[1].toLowerCase();
-  let contentText = args.slice(2).join(' ').trim();
-
-  // Handle '!cmd welcome' -> speaks "welcome" in normal chat
-  if (contentText.toLowerCase() === 'welcome') {
-    if (targetId === 'all') {
-      let count = 0;
-      for (const [id, bot] of Object.entries(activeBots)) {
-        if (botSpawned[id]) {
-          bot.chat('welcome');
-          count++;
-        }
-      }
-      return message.reply(`✅ Broadcasted "welcome" to ${count} active Java bots.`);
-    }
-
-    const botId = parseInt(targetId);
-    const targetBot = activeBots[botId];
-    if (targetBot && botSpawned[botId]) {
-      targetBot.chat('welcome');
-      return message.reply(`✅ Java Bot ${botId} said "welcome".`);
-    } else {
-      return message.reply(`❌ Java Bot ${botId} is not online.`);
-    }
-  }
-
-  // Handle standard Java commands (automatically prepends '/' if missing)
-  if (!contentText.startsWith('/')) {
-    contentText = `/${contentText}`;
-  }
-
-  if (targetId === 'all') {
-    let count = 0;
-    for (const [id, bot] of Object.entries(activeBots)) {
-      if (botSpawned[id]) {
-        bot.chat(contentText);
-        count++;
-      }
-    }
-    return message.reply(`✅ Executed \`${contentText}\` on ${count} Java bots.`);
-  }
-
-  const botId = parseInt(targetId);
-  const targetBot = activeBots[botId];
-
-  if (targetBot && botSpawned[botId]) {
-    targetBot.chat(contentText);
-    message.reply(`✅ Executed \`${contentText}\` on Java Bot ${botId}.`);
-  } else {
-    message.reply(`❌ Java Bot ${botId} is either offline or hasn't fully spawned.`);
-  }
-});
-
-discordClient.login(process.env.DISCORD_TOKEN);
+  cleanupBot(
