@@ -33,7 +33,7 @@ botsConfig.forEach(cfg => {
 const activeBots = {};          // Stores active mineflayer instances
 const botSpawned = {};          // Tracks if the bot successfully spawned
 const botEnabled = {};          // Tracks if a bot is authorized to run
-const botLoginData = {};        // Stores Microsoft device auth codes per bot
+const botLoginData = {};        // Stores Microsoft auth codes { verification_uri, user_code } per bot
 const botTargets = {};          // Stores individual host/port per bot for universal server connection
 
 // ==========================================
@@ -104,7 +104,7 @@ app.get('/', (req, res) => {
         }
 
         .login-box {
-          background: rgba(15, 23, 42, 0.85); padding: 12px; margin: 10px 0;
+          background: rgba(15, 23, 42, 0.9); padding: 12px; margin: 10px 0;
           border-radius: 10px; border: 1px solid #38bdf8; font-size: 0.78rem;
         }
         .login-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; gap: 6px; }
@@ -112,8 +112,9 @@ app.get('/', (req, res) => {
         .login-code { color: #f43f5e; font-size: 0.95rem; font-weight: bold; background: #1e293b; padding: 2px 6px; border-radius: 4px; }
 
         .btn-copy {
-          background: #38bdf8; color: #080c14; padding: 4px 8px; font-size: 0.7rem;
-          border-radius: 4px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap;
+          background: #38bdf8; color: #080c14; padding: 4px 10px; font-size: 0.75rem;
+          border-radius: 6px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap;
+          transition: background 0.2s;
         }
         .btn-copy:hover { background: #0ea5e9; }
 
@@ -195,7 +196,7 @@ app.get('/', (req, res) => {
                 if (info.user_code && info.verification_uri) {
                   loginEl.innerHTML = \`
                     <div class="login-box">
-                      🔑 <b>Microsoft Auth:</b>
+                      🔑 <b>Microsoft Auth Required:</b>
                       <div class="login-row">
                         🔗 <a href="\${info.verification_uri}" target="_blank">Open Link</a>
                         <button class="btn-copy" onclick="copyText('\${info.verification_uri}', this)">Copy Link</button>
@@ -218,7 +219,13 @@ app.get('/', (req, res) => {
           navigator.clipboard.writeText(text).then(() => {
             const orig = btn.innerText;
             btn.innerText = 'Copied!';
-            setTimeout(() => btn.innerText = orig, 2000);
+            btn.style.background = '#22c55e';
+            btn.style.color = '#fff';
+            setTimeout(() => {
+              btn.innerText = orig;
+              btn.style.background = '#38bdf8';
+              btn.style.color = '#080c14';
+            }, 2000);
           });
         }
 
@@ -300,28 +307,35 @@ function startBot(botInfo, host, port) {
       host: targetHost,
       port: targetPort,
       username: botInfo.username,
-      auth: 'microsoft', // Official Microsoft OAuth authentication
-      profilesFolder: botInfo.folder
+      auth: 'microsoft',
+      profilesFolder: botInfo.folder,
+      // Intercept Xbox/Microsoft device authentication prompt output
+      onMsaCode: (data) => {
+        botLoginData[id] = {
+          verification_uri: data.verification_uri || 'https://microsoft.com/link',
+          user_code: data.user_code
+        };
+        console.log(`\n=== MICROSOFT LOGIN FOR JAVA BOT ${id} ===`);
+        console.log(`🔗 Link: ${data.verification_uri}`);
+        console.log(`🔢 Code: ${data.user_code}`);
+        console.log('===========================================\n');
+      }
     });
 
     activeBots[id] = bot;
 
-    // Capture Microsoft Device Authorization code
-    bot.on('login', () => {
-      // If prompt pops up or logs in via cached session
-    });
+    // Fallback listener for older mineflayer auth event emitter names
+    bot.on('auth', () => {});
 
-    bot._client.on('session', () => {
-      // Session established
-    });
-
-    // Mineflayer fires 'auth' or console logs the link, but we can hook the authorization event:
-    bot.on('message', () => {}); // Keeps event stream active
-
-    // Check console logs or capture authentication prompt
-    bot.on('kicked', (reason) => {
-      console.log(`⚠️ Bot ${id} kicked:`, reason);
-    });
+    // Catch console logs if library outputs link via stdout
+    const originalLog = console.log;
+    console.log = (...args) => {
+      const msg = args.join(' ');
+      if (msg.includes('Microsoft Authentication') || msg.includes('https://') && msg.includes('code')) {
+        // Parsed if needed
+      }
+      originalLog(...args);
+    };
 
     bot.once('spawn', () => {
       console.log(`✅ Java Bot ${id} successfully spawned into ${targetHost}:${targetPort}!`);
